@@ -30,13 +30,6 @@ struct ImLine
 
 
 //------------------------------------------------------------------------------
-inline bool operator==(const ImVec2& lhs, const ImVec2& rhs);
-inline bool operator!=(const ImVec2& lhs, const ImVec2& rhs);
-inline ImVec2 operator*(const float lhs, const ImVec2& rhs);
-inline ImVec2 operator-(const ImVec2& lhs);
-
-
-//------------------------------------------------------------------------------
 inline float  ImLength(float v);
 inline float  ImLength(const ImVec2& v);
 inline float  ImLengthSqr(float v);

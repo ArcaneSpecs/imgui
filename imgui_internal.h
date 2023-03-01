@@ -157,12 +157,14 @@ struct ImGuiWindowSettings;         // Storage for a window .ini settings (we ke
 enum ImGuiLocKey : int;                 // -> enum ImGuiLocKey              // Enum: a localization entry for translation.
 typedef int ImGuiDataAuthority;         // -> enum ImGuiDataAuthority_      // Enum: for storing the source authority (dock node vs window) of a field
 typedef int ImGuiLayoutType;            // -> enum ImGuiLayoutType_         // Enum: Horizontal or vertical
+typedef int ImGuiLayoutItemType;        // -> enum ImGuiLayoutItemType_    // Enum: Item or Spring
 
 // Flags
 typedef int ImGuiActivateFlags;         // -> enum ImGuiActivateFlags_      // Flags: for navigation/focus function (will be for ActivateItem() later)
 typedef int ImGuiDebugLogFlags;         // -> enum ImGuiDebugLogFlags_      // Flags: for ShowDebugLogWindow(), g.DebugLogFlags
 typedef int ImGuiInputFlags;            // -> enum ImGuiInputFlags_         // Flags: for IsKeyPressed(), IsMouseClicked(), SetKeyOwner(), SetItemKeyOwner() etc.
 typedef int ImGuiItemFlags;             // -> enum ImGuiItemFlags_          // Flags: for PushItemFlag(), g.LastItemData.InFlags
+typedef int ImGuiItemAddFlags;          // -> enum ImGuiItemAddFlags_       // Flags: for ItemAdd()
 typedef int ImGuiItemStatusFlags;       // -> enum ImGuiItemStatusFlags_    // Flags: for g.LastItemData.StatusFlags
 typedef int ImGuiOldColumnFlags;        // -> enum ImGuiOldColumnFlags_     // Flags: for BeginColumns()
 typedef int ImGuiNavHighlightFlags;     // -> enum ImGuiNavHighlightFlags_  // Flags: for RenderNavHighlight()
@@ -948,6 +950,12 @@ enum ImGuiLayoutType_
     ImGuiLayoutType_Vertical = 1
 };
 
+enum ImGuiLayoutItemType_
+{
+    ImGuiLayoutItemType_Item,
+    ImGuiLayoutItemType_Spring
+};
+
 enum ImGuiLogType
 {
     ImGuiLogType_None = 0,
@@ -1232,6 +1240,72 @@ struct ImGuiPtrOrIndex
 
     ImGuiPtrOrIndex(void* ptr)  { Ptr = ptr; Index = -1; }
     ImGuiPtrOrIndex(int index)  { Ptr = NULL; Index = index; }
+};
+
+// sizeof() == 48
+struct ImGuiLayoutItem
+{
+    ImGuiLayoutItemType     Type;               // Type of an item
+    ImRect                  MeasuredBounds;
+
+    float                   SpringWeight;       // Weight of a spring
+    float                   SpringSpacing;      // Spring spacing
+    float                   SpringSize;         // Calculated spring size
+
+    float                   CurrentAlign;
+    float                   CurrentAlignOffset;
+
+    unsigned int            VertexIndexBegin;
+    unsigned int            VertexIndexEnd;
+
+    ImGuiLayoutItem(ImGuiLayoutItemType type)
+    {
+        Type = type;
+        MeasuredBounds = ImRect(0, 0, 0, 0);    // FIXME: @thedmd are you sure the default ImRect value FLT_MAX,FLT_MAX,-FLT_MAX,-FLT_MAX aren't enough here?
+        SpringWeight = 1.0f;
+        SpringSpacing = -1.0f;
+        SpringSize = 0.0f;
+        CurrentAlign = 0.0f;
+        CurrentAlignOffset = 0.0f;
+        VertexIndexBegin = VertexIndexEnd = (ImDrawIdx)0;
+    }
+};
+
+struct ImGuiLayout
+{
+    ImGuiID                     Id;
+    ImGuiLayoutType             Type;
+    bool                        Live;
+    ImVec2                      Size;               // Size passed to BeginLayout
+    ImVec2                      CurrentSize;        // Bounds of layout known at the beginning the frame.
+    ImVec2                      MinimumSize;        // Minimum possible size when springs are collapsed.
+    ImVec2                      MeasuredSize;       // Measured size with springs expanded.
+
+    ImVector<ImGuiLayoutItem>   Items;
+    int                         CurrentItemIndex;
+    int                         ParentItemIndex;
+    ImGuiLayout*                Parent;
+    ImGuiLayout*                FirstChild;
+    ImGuiLayout*                NextSibling;
+    float                       Align;              // Current item alignment.
+    float                       Indent;             // Indent used to align items in vertical layout.
+    ImVec2                      StartPos;           // Initial cursor position when BeginLayout is called.
+    ImVec2                      StartCursorMaxPos;  // Maximum cursor position when BeginLayout is called.
+
+    ImGuiLayout(ImGuiID id, ImGuiLayoutType type)
+    {
+        Id = id;
+        Type = type;
+        Live = false;
+        Size = CurrentSize = MinimumSize = MeasuredSize = ImVec2(0, 0);
+        CurrentItemIndex = 0;
+        ParentItemIndex = 0;
+        Parent = FirstChild = NextSibling = NULL;
+        Align = -1.0f;
+        Indent = 0.0f;
+        StartPos = ImVec2(0, 0);
+        StartCursorMaxPos = ImVec2(0, 0);
+    }
 };
 
 //-----------------------------------------------------------------------------
@@ -2429,6 +2503,12 @@ struct IMGUI_API ImGuiWindowTempData
     ImGuiStorage*           StateStorage;           // Current persistent per-window storage (store e.g. tree node open/close state)
     ImGuiOldColumns*        CurrentColumns;         // Current columns set
     int                     CurrentTableIdx;        // Current table index (into g.Tables)
+    
+    // For node editor
+    ImGuiLayout*            CurrentLayout;
+    ImGuiLayoutItem*        CurrentLayoutItem;
+    ImGuiStorage            Layouts;
+    ImVector<ImGuiLayout*>  LayoutStack;
     ImGuiLayoutType         LayoutType;
     ImGuiLayoutType         ParentLayoutType;       // Layout type of parent window at the time of Begin()
 
